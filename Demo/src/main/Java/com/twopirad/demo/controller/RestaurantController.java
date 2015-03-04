@@ -1,27 +1,26 @@
 package com.twopirad.demo.controller;
 
 import com.datastax.driver.core.*;
-import com.datastax.driver.core.querybuilder.Insert;
 import com.datastax.driver.core.querybuilder.QueryBuilder;
-import com.datastax.driver.core.querybuilder.Using;
+import com.datastax.driver.core.querybuilder.Select;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.twopirad.demo.model.Dish;
+import com.twopirad.demo.model.Dish2;
 import com.twopirad.demo.model.Menu;
+import com.twopirad.demo.model.SaleDetail;
 import com.twopirad.demo.service.CassandraClient;
+import com.twopirad.demo.service.SparkClient;
+import com.twopirad.demo.service.CassandraService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestMethod;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+
+import static com.datastax.driver.core.querybuilder.QueryBuilder.eq;
 
 /**
  * Created with IntelliJ IDEA.
@@ -31,13 +30,19 @@ import java.util.Map;
  * To change this template use File | Settings | File Templates.
  */
 
-@RestController(value = "/menu")
-public class RestaurantController {
+@RestController
+public class RestaurantController{
 
     @Autowired
     private CassandraClient cassandraClient;
 
-    @RequestMapping(method = RequestMethod.POST, consumes = MediaType.APPLICATION_JSON_VALUE)
+    @Autowired
+    private SparkClient sparkClient;
+
+    @Autowired
+    private CassandraService cassandraService;
+
+    @RequestMapping(value = "/menu", method = RequestMethod.POST, consumes = MediaType.APPLICATION_JSON_VALUE)
     public Menu applyMenu(@RequestBody String menuConfiguration) {
         Menu menu = populateMenu(menuConfiguration);
         saveMenu(menu);
@@ -137,25 +142,36 @@ public class RestaurantController {
         }
     }
 
-    @RequestMapping(method = RequestMethod.PUT, produces = MediaType.APPLICATION_JSON_VALUE)
+    @RequestMapping(value = "/menu", method = RequestMethod.PUT, produces = MediaType.APPLICATION_JSON_VALUE)
     public Menu addItems(@RequestBody String dishConfiguration) {
         Menu menu = populateMenu(dishConfiguration);
         saveMenu(menu);
         return menu;
     }
 
-    @RequestMapping(method = RequestMethod.GET, produces = MediaType.APPLICATION_JSON_VALUE)
-    public Menu getMenu() {
+    @RequestMapping(value = "/menu", method = RequestMethod.GET, produces = MediaType.APPLICATION_JSON_VALUE)
+    public List<Menu> getMenu(@RequestParam(required = false) String code) {
         Cluster cluster = cassandraClient.getCluster();
         Session session = cluster.connect();
-        //Select select = QueryBuilder.select().all().from("demo", "restaurant");
-        ResultSet resultSet = session.execute("select * from demo.restaurant");
-        Menu menu = new Menu();
-        String name = null;
-        String code = null;
+        List<Menu> menus = new ArrayList<Menu>();
+        Select select = QueryBuilder.select().all().from("demo", "restaurant");
+        if (code != null) {
+            select.where(eq("code", code));
+        }
+        ResultSet resultSet = session.execute(select);
+        Menu menu = null;
+        String name;
+        boolean flag = true;
         for (Row row : resultSet) {
-            code = row.getString("code");
-            name = row.getString("name");
+            if (flag || !code.equals(row.getString("code"))) {
+                flag = false;
+                code = row.getString("code");
+                name = row.getString("name");
+                menu = new Menu();
+                menus.add(menu);
+                menu.setName(name);
+                menu.setCode(code);
+            }
             String category = row.getString("category");
             String dishName = row.getString("dish_name");
             int dishPrice = row.getInt("dish_price");
@@ -171,9 +187,75 @@ public class RestaurantController {
             dish.setQuantity(dishQuantity);
             menu.addDish(category, dish);
         }
-        menu.setName(name);
-        menu.setCode(code);
-        return menu;
+
+        return menus;
     }
+
+    @RequestMapping(value = "/sale/entry", method = RequestMethod.POST)
+    public void salesEntry(@RequestBody List<SaleDetail> saleDetails) {
+        String salesTableCreationSql = new StringBuilder()
+                .append(" CREATE TABLE IF NOT EXISTS demo.sales (")
+                .append(" restaurantCode text,")
+                .append(" saleCode text,")
+                .append(" customerCode text,")
+                .append(" category text,")
+                .append(" items map<text,int>,")
+                .append(" PRIMARY KEY (restaurantCode, saleCode));")
+                .toString();
+        Date date = new Date();
+        long timestamp = date.getTime();
+        Session session = null;
+        Cluster cluster;
+        try {
+            cluster = cassandraClient.getCluster();
+            session = cluster.connect();
+            session.execute(salesTableCreationSql);
+            StringBuilder batchInsertSqlBuilder = new StringBuilder().append("BEGIN BATCH USING TIMESTAMP ").append(timestamp);
+            List<Object> params = new ArrayList<Object>();
+            int count = 0;
+            for (SaleDetail saleDetail : saleDetails) {
+                count++;
+                String restaurantCode = saleDetail.getRestaurantCode();
+                String customerCode = saleDetail.getCustomerId();
+                for (Map.Entry<String, List<Dish2>> entry : saleDetail.getItems().entrySet()) {
+                    List<Dish2> items = entry.getValue();
+                    batchInsertSqlBuilder.append(" INSERT INTO demo.sales (restaurantCode, saleCode, customerCode, category, items) VALUES (?, ?, ?, ?, ?);");
+                    params.add(restaurantCode);
+                    params.add(saleDetail.getSaleCode());
+                    params.add(customerCode);
+                    params.add(entry.getKey());
+                    Map<String, Integer> map = new HashMap<String, Integer>();
+                    for (Dish2 item : items) {
+                        map.put(item.getName(), item.getQuantity());
+                    }
+                    params.add(map);
+                }
+                if (count >= 400) {
+                    batchInsertSqlBuilder.append(" APPLY BATCH");
+                    PreparedStatement insertPreparedStatement = session.prepare(batchInsertSqlBuilder.toString());
+                    session.execute(insertPreparedStatement.bind(params.toArray()));
+                    batchInsertSqlBuilder = new StringBuilder().append("BEGIN BATCH USING TIMESTAMP ").append(timestamp);
+                    count = 0;
+                    params.clear();
+                }
+            }
+            if (count > 0) {
+                batchInsertSqlBuilder.append(" APPLY BATCH");
+                PreparedStatement insertPreparedStatement = session.prepare(batchInsertSqlBuilder.toString());
+                session.execute(insertPreparedStatement.bind(params.toArray()));
+            }
+        } finally {
+            if (session != null) {
+                session.close();
+            }
+        }
+
+    }
+
+    @RequestMapping(value = "/sale/detail", method = RequestMethod.GET)
+    public String getSaleDetail() {
+        return cassandraService.getSalesDetail();
+    }
+
 
 }

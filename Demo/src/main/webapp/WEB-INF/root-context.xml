@@ -11,5 +11,10 @@
     <bean id="cassandraClient" class="com.twopirad.demo.service.CassandraClient">
         <property name="nodes" value="127.0.0.1"/>
     </bean>
+    <bean id="sparkClient" class="com.twopirad.demo.service.SparkClient">
+        <property name="cassandraConnectionHost" value="127.0.0.1"/>
+    </bean>
+
+    <bean id="test" class="com.twopirad.demo.service.CassandraService"/>
 
 </beans>

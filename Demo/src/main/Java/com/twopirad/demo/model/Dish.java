@@ -20,6 +20,7 @@ public class Dish implements Serializable{
     private String description;
     private String quantity;
     private String name;
+    private int soldQuantity;
 
     public String getCategory() {
         return category;
@@ -67,5 +68,13 @@ public class Dish implements Serializable{
 
     public String getName() {
         return name;
+    }
+
+    public void setSoldQuantity(int soldQuantity) {
+        this.soldQuantity = soldQuantity;
+    }
+
+    public int getSoldQuantity() {
+        return soldQuantity;
     }
 }
