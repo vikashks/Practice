@@ -28,10 +28,10 @@ public class ActivitiesHost {
         AmazonSimpleWorkflow service = new AmazonSimpleWorkflowClient(credentials, configuration);
         service.setEndpoint("https://swf.us-east-1.amazonaws.com");
         String domain = "Practice";
-        String taskListToPoll = "GreetList";
+        String taskListToPoll = "ReltioDataUpload";
 
         final ActivityWorker activityWorker = new ActivityWorker(service, domain, taskListToPoll);
-        activityWorker.addActivitiesImplementation(new HelloWorldActivitiesImpl());
+        activityWorker.addActivitiesImplementation(new ReltioDataUploadActivitiesImpl());
         activityWorker.start();
 
         System.out.println("Activity Worker Started for Task List: " + activityWorker.getTaskListToPoll());
@@ -42,8 +42,7 @@ public class ActivitiesHost {
                 try {
                     activityWorker.shutdownAndAwaitTermination(1, TimeUnit.MINUTES);
                     System.out.println("Activity Worker Exited.");
-                }
-                catch (InterruptedException e) {
+                } catch (InterruptedException e) {
                     e.printStackTrace();
                 }
             }
@@ -53,8 +52,7 @@ public class ActivitiesHost {
 
         try {
             System.in.read();
-        }
-        catch (IOException e) {
+        } catch (IOException e) {
             e.printStackTrace();
         }
         System.exit(0);

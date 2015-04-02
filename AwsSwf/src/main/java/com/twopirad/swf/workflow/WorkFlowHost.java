@@ -28,10 +28,10 @@ public class WorkFlowHost {
         AmazonSimpleWorkflow service = new AmazonSimpleWorkflowClient(credentials, configuration);
         service.setEndpoint("https://swf.us-east-1.amazonaws.com");
         String domain = "Practice";
-        String taskListToPoll = "GreetList";
+        String taskListToPoll = "ReltioDataUpload";
 
         final WorkflowWorker wfw = new WorkflowWorker(service, domain, taskListToPoll);
-        wfw.addWorkflowImplementationType(HelloWorldWorkflowImpl.class);
+        wfw.addWorkflowImplementationType(ReltioDataUploadWorkflowImpl.class);
         wfw.start();
 
         System.out.println("Workflow Host Service Started...");
