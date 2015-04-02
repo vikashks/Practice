@@ -9,6 +9,7 @@ import com.twopirad.swf.workflow.ReltioDataUploadWorkflowClientExternal;
 import com.twopirad.swf.workflow.ReltioDataUploadWorkflowClientExternalFactory;
 import com.twopirad.swf.workflow.ReltioDataUploadWorkflowClientExternalFactoryImpl;
 import org.apache.camel.*;
+import org.apache.camel.component.mail.MailMessage;
 import org.apache.camel.impl.DefaultCamelContext;
 
 import javax.mail.Flags;
@@ -28,25 +29,29 @@ public class Starter {
         String accessKeyId = System.getenv("AWS_ACCESS_KEY_ID");
         String secretKey = System.getenv("AWS_SECRET_KEY");
         AWSCredentials credentials = new BasicAWSCredentials(accessKeyId, secretKey);
-
         AmazonSimpleWorkflow service = new AmazonSimpleWorkflowClient(credentials, configuration);
         service.setEndpoint("https://swf.us-east-1.amazonaws.com");
         String domain = "Practice";
 
         final ReltioDataUploadWorkflowClientExternalFactory factory = new ReltioDataUploadWorkflowClientExternalFactoryImpl(service, domain);
-       /* ReltioDataUploadWorkflowClientExternal client = factory.getClient();
-        client.dataUpload();*/
-
         final CamelContext camelContext = new DefaultCamelContext();
         String password = System.getenv("EMAIL_PASSWORD");
-        password = "ravi2pirad";
         Endpoint endpoint = camelContext.getEndpoint("imaps://imap.gmail.com?username=vikashs@2pirad.com&password=" + password +
                 "&delete=true&maxMessagesPerPoll=10&fetchSize=10&searchTerm.subject='Aws Swf Testing'&consumer.delay=10000");
         try {
             Consumer consumer = endpoint.createConsumer(new Processor() {
                 @Override
                 public void process(Exchange exchange) throws Exception {
-                    /*Map<String, DataHandler> attachments = exchange.getIn().getAttachments();
+                    //read individual messages
+                    Message message = exchange.getIn();
+                    String body = message.getBody(String.class);
+                    javax.mail.Message originalMessage = exchange.getIn(MailMessage.class).getOriginalMessage();
+                    originalMessage.setFlag(Flags.Flag.SEEN, true);
+                    ReltioDataUploadWorkflowClientExternal client = factory.getClient();
+                    client.dataUpload(body);
+
+                    //read attachments
+                    /*Map<String, DataHandler> attachments = message.getAttachments();
                     if (attachments.size() > 0) {
                         for (String name : attachments.keySet()) {
                             DataHandler dh = attachments.get(name);
@@ -64,10 +69,7 @@ public class Starter {
                             out.close();
                         }
                     }*/
-                    Message message = exchange.getIn();
-                    String body = message.getBody(String.class);
-                    ReltioDataUploadWorkflowClientExternal client = factory.getClient();
-                    client.dataUpload(body);
+
                 }
             });
             consumer.start();
@@ -88,13 +90,6 @@ public class Starter {
                 }
             }
         }));
-
-        /*WorkflowExecution execution = client.getWorkflowExecution();
-        System.out.println("Started helloWorld workflow with workflowId=\"" + execution.getWorkflowId()
-                + "\" and runId=\"" + execution.getRunId() + "\"");*/
-
-
-        //System.in.read();
 
         //re8.5%QcvY&
         //["[Ljava.lang.Object;",[]]
