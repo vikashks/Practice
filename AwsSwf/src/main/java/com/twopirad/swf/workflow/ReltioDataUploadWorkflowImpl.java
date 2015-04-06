@@ -16,9 +16,9 @@ public class ReltioDataUploadWorkflowImpl implements ReltioDataUploadWorkflow {
     ReltioDataUploadActivitiesClient client = new ReltioDataUploadActivitiesClientImpl();
 
     @Override
-    public void dataUpload(String message) {
-        Promise<String> testing = client.populateJSON(message);
-        client.uploadData(testing);
+    public void dataUpload(String sourceFilePath) {
+        Promise<String> jsonFilePath = client.populateJSON(sourceFilePath);
+        client.uploadData(jsonFilePath);
 
        /* while (true) {
             Promise<String> testing = client.populateJSON(test());

@@ -8,7 +8,7 @@ import com.amazonaws.services.simpleworkflow.flow.annotations.WorkflowRegistrati
 @WorkflowRegistrationOptions(defaultExecutionStartToCloseTimeoutSeconds = 864000)
 public interface ReltioDataUploadWorkflow {
 
-    @Execute(version = "1.2")
-    void dataUpload(String message);
+    @Execute(version = "1.3")
+    void dataUpload(String sourceFilePath);
 
 }

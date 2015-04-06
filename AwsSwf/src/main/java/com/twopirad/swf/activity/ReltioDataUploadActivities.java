@@ -15,13 +15,13 @@ import com.amazonaws.services.simpleworkflow.flow.annotations.ActivityRegistrati
 @Activities
 public interface ReltioDataUploadActivities {
 
-    @Activity(name = "populateJSON", version = "1.1")
+    @Activity(name = "populateJSON", version = "1.3")
     @ActivityRegistrationOptions(defaultTaskScheduleToStartTimeoutSeconds = 30, defaultTaskStartToCloseTimeoutSeconds = 60)
-    String populateJSON(String data);
+    String populateJSON(String sourceFilePath) throws Exception;
 
-    @Activity(name = "uploadData", version = "1.1")
+    @Activity(name = "uploadData", version = "1.3")
     @ActivityRegistrationOptions(defaultTaskScheduleToStartTimeoutSeconds = 30, defaultTaskStartToCloseTimeoutSeconds = 60)
-    void uploadData(String json);
+    void uploadData(String jsonFilePath) throws Exception;
 
 
 }
